@@ -35,14 +35,14 @@ defViewport =
 
 appLoop :: Renderer -> V2 Int -> Viewport -> IO ()
 appLoop renderer dims vp@Viewport {scale = s, offset = o} = do
-  drawBackground renderer black
+  drawBackground renderer backgroundColor
   events <- pollEvents
   let motions = map dispatchMotionEvent events
       nState = foldr updateViewport vp (catMaybes motions)
 
   let points = mSet dims s o 63
 
-  drawDots renderer white points
+  drawDots renderer foregroundColor points
 
   present renderer
 
@@ -88,11 +88,11 @@ updateViewport w old@Viewport {scale = sc, offset = V2 x y} =
 
 type Color = V4 Word8
 
-black :: Color
-black = V4 0 0 0 0
+backgroundColor :: Color
+backgroundColor = V4 241 250 238 0
 
-white :: Color
-white = V4 255 255 255 0
+foregroundColor :: Color
+foregroundColor = V4 29 53 87 0
 
 drawBackground :: Renderer -> Color -> IO ()
 drawBackground renderer color = do
