@@ -1,32 +1,39 @@
-module Mandelbrot where
+module Mandelbrot (mSet) where
 
-type Complex = (Float, Float)
+import SDL (V2 (..))
 
-type Point = (Int, Int)
+type Complex = V2 Float
 
 square :: Complex -> Complex
-square (a, b) = (a * a - b * b, 2 * a * b)
+square (V2 a b) = V2 (a * a - b * b) (2 * a * b)
 
 add :: Complex -> Complex -> Complex
-add (a, b) (x, y) = (a + x, b + y)
+add (V2 a b) (V2 x y) = V2 (a + x) (b + y)
 
 squaredLength :: Complex -> Float
-squaredLength (a, b) = a * a + b * b
+squaredLength (V2 a b) = a * a + b * b
 
-inMandelbrot :: Int -> Complex -> Bool
-inMandelbrot maxIter n = go (0, 0) 0
+-- | z_0 = 0
+--  z_{n+1} = z_n^2 + c
+--  Divergiert ( z > threshold )          -> nicht in Menge
+--  Convergiert bis maximal n Iterationen -> in Menge
+isInMandelbrot :: Int -> Complex -> Bool
+isInMandelbrot maxIter c = go c 0
   where
+    threshold = 4.0
     go :: Complex -> Int -> Bool
-    go x i
+    go z i
       | i > maxIter = True
-      | squaredLength xn > 4.0 = False
-      | otherwise = go xn (i + 1)
+      | squaredLength zn > threshold = False
+      | otherwise = go zn (i + 1)
       where
-        xn = square x `add` n
+        zn = square z `add` c
 
-mSet :: (Int, Int) -> (Int, Int) -> (Float, Float) -> Int -> [Point]
-mSet (width, height) (stepX, stepY) (shiftX, shiftY) maxIter =
-  [(a, b) | a <- [1 .. width], b <- [1 .. height], inMandelbrot maxIter (cent a stepX shiftX, cent b stepY shiftY)]
+mSet :: V2 Int -> V2 Int -> V2 Float -> Int -> [V2 Int]
+mSet (V2 width height) (V2 stepX stepY) (V2 shiftX shiftY) maxIter =
+  [V2 a b | a <- [1 .. width], b <- [1 .. height], p a b]
   where
     cent :: Int -> Int -> Float -> Float
     cent x mid shift = (fromIntegral (x - mid) / fromIntegral mid) + shift
+
+    p a b = isInMandelbrot maxIter (V2 (cent a stepX shiftX) (cent b stepY shiftY))

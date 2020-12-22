@@ -2,120 +2,104 @@
 
 module Main where
 
-import Control.Monad
+import Control.Monad (unless)
 import Data.Maybe (catMaybes)
-import Data.Word
-import Foreign.C.Types
-import Mandelbrot
+import Data.Vector.Storable (fromList)
+import Data.Word (Word8)
+import Mandelbrot (mSet)
 import SDL
-
-data Color = Color
-  { red :: Word8,
-    green :: Word8,
-    blue :: Word8
-  }
-  deriving (Show, Eq)
-
-black :: Color
-black =
-  Color
-    { red = 0,
-      green = 0,
-      blue = 0
-    }
-
-white :: Color
-white =
-  Color
-    { red = 255,
-      green = 255,
-      blue = 255
-    }
-
-toVect :: Color -> V4 Word8
-toVect Color {red = r, green = g, blue = b} = V4 r g b 0
 
 main :: IO ()
 main = do
   initializeAll
-  window <- createWindow "mandelbrot" defaultWindow
-  (V2 sx sy) <- get $ windowSize window
-  mapM_ putStrLn $ show <$> [sx, sy]
+  window   <- createWindow "mandelbrot" defaultWindow
   renderer <- createRenderer window (-1) defaultRenderer
 
-  let scale = 1
-  rendererScale renderer $= fromIntegral <$> V2 scale scale
+  dimensions <- get $ windowSize window
 
-  appLoop renderer (fromIntegral sx `div` scale, fromIntegral sy `div` scale) defState
+  appLoop renderer (fmap fromIntegral dimensions) defViewport
 
   destroyWindow window
 
-data State = State
-  { scale :: (Int, Int),
-    offset :: (Float, Float)
+data Viewport = Viewport
+  { scale  :: V2 Int,
+    offset :: V2 Float
   }
-  deriving (Show, Eq)
 
-defState =
-  State
-    { scale = (1200, 1200),
-      offset = (-0.6, 0)
+defViewport :: Viewport
+defViewport =
+  Viewport
+    { scale  = V2 324 324,
+      offset = V2 (-0.9) 0.05
     }
 
-type WindowDim = (Int, Int)
-
-appLoop :: Renderer -> WindowDim -> State -> IO ()
-appLoop renderer (sx, sy) state@State {scale = s, offset = o} = do
+appLoop :: Renderer -> V2 Int -> Viewport -> IO ()
+appLoop renderer dims vp@Viewport {scale = s, offset = o} = do
   drawBackground renderer black
   events <- pollEvents
-  let motions = dispatchMotionEvent <$> events
-      nState = foldr updateState state (catMaybes motions)
+  let motions = map dispatchMotionEvent events
+      nState = foldr updateViewport vp (catMaybes motions)
 
-  let ps = mSet (sx, sy) s o 63
+  let points = mSet dims s o 63
 
-  let State {offset = (x, y)} = nState
-
-  forM_ ps (\(x, y) -> drawDot renderer white (fromIntegral x) (fromIntegral y))
+  drawDots renderer white points
 
   present renderer
-  appLoop renderer (sx, sy) nState
 
-data WindowControl = MoveLeft | MoveRight | MoveUp | MoveDown | ZoomIn | ZoomOut
+  unless (checkExitEvent events) $ appLoop renderer dims nState
 
-dispatchMotionEvent :: Event -> Maybe WindowControl
-dispatchMotionEvent e = case eventPayload e of
-  KeyboardEvent keyboardevent ->
-    if keyboardEventKeyMotion keyboardevent == Pressed
-      then case keysymKeycode (keyboardEventKeysym keyboardevent) of
-        KeycodeLeft -> Just MoveLeft
-        KeycodeRight -> Just MoveRight
-        KeycodeUp -> Just MoveUp
-        KeycodeDown -> Just MoveDown
-        KeycodeLShift -> Just ZoomIn
-        KeycodeLCtrl -> Just ZoomOut
-      else Nothing
-  _ -> Nothing
-
-updateState :: WindowControl -> State -> State
-updateState w s@State {scale = (sx, sy), offset = (x, y)} =
-  case w of
-    MoveLeft -> s {offset = (x - step, y)}
-    MoveRight -> s {offset = (x + step, y)}
-    MoveUp -> s {offset = (x, y - step)}
-    MoveDown -> s {offset = (x, y + step)}
-    ZoomIn -> s {scale = (sx + zoom, sy + zoom)}
-    ZoomOut -> s {scale = (sx - zoom, sy - zoom)}
+checkExitEvent :: [Event] -> Bool
+checkExitEvent = any isEscPress
   where
-    step = 0.01
+    isEscPress = keyPressed KeycodeEscape
+
+keyPressed :: Keycode -> Event -> Bool
+keyPressed keyCode event = case eventPayload event of
+  KeyboardEvent keyevent -> pressEvent keyevent && isKeyCode keyevent
+  _ -> False
+  where
+    pressEvent = (== Pressed) . keyboardEventKeyMotion
+    isKeyCode  = (== keyCode) . keysymKeycode . keyboardEventKeysym
+
+data ViewControl = MoveLeft | MoveRight | MoveUp | MoveDown | ZoomIn | ZoomOut
+
+dispatchMotionEvent :: Event -> Maybe ViewControl
+dispatchMotionEvent e
+  | keyPressed KeycodeLeft   e = Just MoveLeft
+  | keyPressed KeycodeRight  e = Just MoveRight
+  | keyPressed KeycodeUp     e = Just MoveUp
+  | keyPressed KeycodeDown   e = Just MoveDown
+  | keyPressed KeycodeLShift e = Just ZoomIn
+  | keyPressed KeycodeLCtrl  e = Just ZoomOut
+  | otherwise = Nothing
+
+updateViewport :: ViewControl -> Viewport -> Viewport
+updateViewport w old@Viewport {scale = sc, offset = V2 x y} =
+  case w of
+    MoveLeft  -> old {offset = V2 (x - step) y}
+    MoveRight -> old {offset = V2 (x + step) y}
+    MoveUp    -> old {offset = V2 x (y - step)}
+    MoveDown  -> old {offset = V2 x (y + step)}
+    ZoomIn    -> old {scale = fmap (+ zoom) sc}
+    ZoomOut   -> old {scale = fmap (+ (- zoom)) sc}
+  where
+    step = 0.05
     zoom = 20
+
+type Color = V4 Word8
+
+black :: Color
+black = V4 0 0 0 0
+
+white :: Color
+white = V4 255 255 255 0
 
 drawBackground :: Renderer -> Color -> IO ()
 drawBackground renderer color = do
-  rendererDrawColor renderer $= toVect color
+  rendererDrawColor renderer $= color
   clear renderer
 
-drawDot :: Renderer -> Color -> CInt -> CInt -> IO ()
-drawDot renderer color x y = do
-  rendererDrawColor renderer $= toVect color
-  let p = P $ V2 x y
-  drawPoint renderer p
+drawDots :: Renderer -> Color -> [V2 Int] -> IO ()
+drawDots renderer color points = do
+  rendererDrawColor renderer $= color
+  drawPoints renderer $ fromList $ map (P . fmap fromIntegral) points
