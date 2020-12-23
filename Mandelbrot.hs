@@ -1,4 +1,4 @@
-module Mandelbrot (mSet) where
+module Mandelbrot (mandelbrotSet) where
 
 import SDL (V2 (..))
 
@@ -29,11 +29,11 @@ isInMandelbrot maxIter c = go c 0
       where
         zn = square z `add` c
 
-mSet :: V2 Int -> V2 Int -> V2 Float -> Int -> [V2 Int]
-mSet (V2 width height) (V2 stepX stepY) (V2 shiftX shiftY) maxIter =
-  [V2 a b | a <- [1 .. width], b <- [1 .. height], p a b]
+mandelbrotSet :: V2 Int -> V2 Int -> Complex -> Int -> [V2 Int]
+mandelbrotSet (V2 width height) (V2 rStep iStep) (V2 rShift iShift) maxIter =
+  [n | a <- [1 .. width], b <- [1 .. height], let n = V2 a b, p n]
   where
-    cent :: Int -> Int -> Float -> Float
-    cent x mid shift = (fromIntegral (x - mid) / fromIntegral mid) + shift
-
-    p a b = isInMandelbrot maxIter (V2 (cent a stepX shiftX) (cent b stepY shiftY))
+    trans :: V2 Int -> Complex
+    trans (V2 x y) = V2 ((fromIntegral (x - rStep) / fromIntegral rStep) + rShift)
+                        ((fromIntegral (y - iStep) / fromIntegral iStep) + iShift)
+    p = isInMandelbrot maxIter . trans
