@@ -15,8 +15,8 @@ squaredLength (V2 a b) = a * a + b * b
 
 -- | z_0 = 0
 --  z_{n+1} = z_n^2 + c
---  Divergiert ( z > threshold )          -> nicht in Menge
---  Convergiert bis maximal n Iterationen -> in Menge
+--  Divergiert ( z > threshold )          -> c nicht in Menge
+--  Konvergiert bis maximal n Iterationen -> c in Menge
 isInMandelbrot :: Int -> Complex -> Bool
 isInMandelbrot maxIter c = go c 0
   where
