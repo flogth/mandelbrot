@@ -28,9 +28,11 @@ isInMandelbrot maxIter c = go c 0
 
 mandelbrotSet :: V2 Int -> V2 Int -> Complex -> Int -> [V2 Int]
 mandelbrotSet (V2 width height) (V2 rStep iStep) (V2 rShift iShift) maxIter =
-  [n | a <- [1 .. width], b <- [1 .. height], let n = V2 a b, p n]
+  [n | a <- [0 .. width - 1], b <- [0 .. height - 1], let n = V2 a b, p n]
   where
     trans :: V2 Int -> Complex
-    trans (V2 x y) = V2 ((fromIntegral (x - rStep) / fromIntegral rStep) + rShift)
-                        ((fromIntegral (y - iStep) / fromIntegral iStep) + iShift)
+    trans (V2 x y) =
+      V2
+        ((fromIntegral (x - rStep) / fromIntegral rStep) + rShift)
+        ((fromIntegral (y - iStep) / fromIntegral iStep) + iShift)
     p = isInMandelbrot maxIter . trans

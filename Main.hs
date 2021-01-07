@@ -2,7 +2,6 @@
 
 module Main where
 
-import Control.Concurrent (threadDelay)
 import Control.Monad (unless)
 import Data.Maybe (catMaybes)
 import Data.Vector.Storable (fromList)
